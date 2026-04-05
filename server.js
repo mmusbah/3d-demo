@@ -213,11 +213,28 @@ app.post('/api/jobs', async (req, res) => {
 
     const sourceUrl = req.body.url;
     const imageUrl = await resolveImageUrl(sourceUrl);
+
+    // Check if this image was already created
+    const models = getModels();
+    const existing = models.find(m =>
+      m.source_url === sourceUrl ||
+      (m.source_image && imageUrl.includes(path.basename(m.source_image).replace(/\.\w+$/, '')))
+    );
+    if (existing) {
+      log(`Duplicate detected — model ${existing.id} already exists for ${sourceUrl}`);
+      return res.json({ job_id: existing.id, duplicate: true, existing_model: existing });
+    }
+
+    // Check if there's already an active job for this image
+    for (const [id, job] of jobs) {
+      if (job.image_url === imageUrl && job.status !== 'done' && job.status !== 'error') {
+        log(`Job already in progress for ${sourceUrl}`);
+        return res.json({ job_id: id, in_progress: true });
+      }
+    }
+
     const jobId = Date.now().toString();
-
     jobs.set(jobId, { status: 'queued', source_url: sourceUrl, image_url: imageUrl });
-
-    // Fire and forget — job runs in background on the server
     runJob(jobId, sourceUrl, imageUrl);
 
     log(`Job ${jobId} created for ${sourceUrl}`);

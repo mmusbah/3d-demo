@@ -425,13 +425,19 @@ async function generate() {
     const data = await r.json();
     if (data.error) throw new Error(data.error);
 
-    toastText.textContent = 'Sculpting 3D model...';
+    if (data.duplicate) {
+      clearInterval(card._timerInterval);
+      card.remove();
+      document.getElementById('toast-spinner').style.display = 'none';
+      toastText.textContent = 'This image has already been turned into 3D!';
+      setTimeout(() => toast.classList.remove('show'), 3000);
+      return;
+    }
 
-    // Poll job status
-    const result = await pollJob(data.job_id);
+    toastText.textContent = 'Sculpting 3D model...';
+    await pollJob(data.job_id);
 
     clearInterval(card._timerInterval);
-    // Reload feed to show the new model with all server-side data
     await loadFeed();
     toast.classList.remove('show');
 
